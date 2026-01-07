@@ -433,6 +433,7 @@ case "${1:-all}" in
 		install_apt_packages
 		prompt_gh_login
 		install_git_config
+		install_subtree_aliases
 		;;
 
 	pip)
