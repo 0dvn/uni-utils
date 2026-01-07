@@ -372,6 +372,25 @@ install_git_config() {
 }
 
 # -----------------------------
+# Git Subtree Aliases
+# -----------------------------
+
+# Add subpush and subpull aliases to simplify subtree management
+install_subtree_aliases() {
+	echo "Installing Git subtree aliases (subpush, subpull)" | tee -a "$LOGFILE"
+	
+	# subpush: Usage 'git subpush <folder> <repo-name>'
+	# Extracts <folder> and pushes to https://github.com/0dvn/<repo-name>.git
+	git config --global alias.subpush '!f() { git subtree push --prefix="$1" "https://github.com/0dvn/$2.git" main; }; f'
+	
+	# subpull: Usage 'git subpull <folder> <repo-name>'
+	# Pulls latest from the external repo back into the local folder
+	git config --global alias.subpull '!f() { git subtree pull --prefix="$1" "https://github.com/0dvn/$2.git" main --squash; }; f'
+
+	echo "Subtree aliases installed: subpush, subpull" >> "$LOGFILE"
+}
+
+# -----------------------------
 # Utilities
 # -----------------------------
 
@@ -407,6 +426,7 @@ case "${1:-all}" in
 		install_java_manager
 		prompt_gh_login
 		install_git_config
+		install_subtree_aliases
 		;;
 
 	apt)
