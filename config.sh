@@ -21,6 +21,7 @@ Commands:
   java-manager: Install SDKMAN and a Java runtime via SDKMAN
   gh          : Install GitHub CLI (gh) only
 	gh-login    : Prompt for gh auth login (requires gh installed)
+	git-config  : Configure global git user.name/user.email (interactive or via gh)
 	clone       : Clone or update https://github.com/0dvn/uni into ~/docs
 	record      : Append a manual note to the log
   -h|--help   : Show this help
@@ -377,15 +378,55 @@ install_git_config() {
 
 # Add subpush and subpull aliases to simplify subtree management
 install_subtree_aliases() {
-	echo "Installing Git subtree aliases (subpush, subpull)" | tee -a "$LOGFILE"
+	echo "Installing Git subtree aliases (subinit, subpush, subpull)" | tee -a "$LOGFILE"
 	
-	# subpush: Usage 'git subpush <folder> <repo-name>'
-	# Extracts <folder> and pushes to https://github.com/0dvn/<repo-name>.git
-	git config --global alias.subpush '!f() { git subtree push --prefix="$1" "https://github.com/0dvn/$2.git" main; }; f'
-	
-	# subpull: Usage 'git subpull <folder> <repo-name>'
-	# Pulls latest from the external repo back into the local folder
-	git config --global alias.subpull '!f() { git subtree pull --prefix="$1" "https://github.com/0dvn/$2.git" main --squash; }; f'
+	git config --global alias.subinit '!f() { \
+		dir="${1%/}"; url="$2"; branch="${3:-main}"; \
+		if [ -z "$dir" ] || [ -z "$url" ]; then echo "Usage: git subinit <dir> <url> [branch]" >&2; return 1; fi; \
+		mkdir -p "$dir"; \
+		root="$(git rev-parse --show-toplevel)"; \
+		echo "$url $branch $root" > "$dir/.subrepo"; \
+		echo "Subrepo initialized in $dir"; \
+		echo "URL: $url"; \
+		echo "Branch: $branch"; \
+		echo "Root: $root"; \
+	}; f'
+
+	git config --global alias.subpush '!f() { \
+		target_dir="$1"; branch_arg=""; \
+		while [ $# -gt 0 ]; do case "$1" in -b) branch_arg="$2"; shift 2 ;; *) shift ;; esac; done; \
+		if [ -f ".subrepo" ]; then \
+			subrepo_file=".subrepo"; subrepo_dir="$(pwd)"; \
+		elif [ -n "$target_dir" ] && [ -f "$target_dir/.subrepo" ]; then \
+			subrepo_file="$target_dir/.subrepo"; subrepo_dir="$(cd "$target_dir" && pwd)"; \
+		else \
+			echo "Error: .subrepo file not found here or in the specified directory." >&2; return 1; \
+		fi; \
+		read -r url saved_branch repo_root < "$subrepo_file"; \
+		branch="${branch_arg:-$saved_branch}"; \
+		prefix=$(python3 -c "import os; print(os.path.relpath(\"$subrepo_dir\", \"$repo_root\"))"); \
+		if [ "$branch" != "$saved_branch" ]; then echo "$url $branch $repo_root" > "$subrepo_file"; echo "Branch updated to: $branch"; fi; \
+		echo "Pushing $prefix to $url ($branch)..."; \
+		cd "$repo_root" && git subtree push --prefix="$prefix" "$url" "$branch"; \
+	}; f'
+		
+	git config --global alias.subpull '!f() { \
+		target_dir="$1"; branch_arg=""; \
+		while [ $# -gt 0 ]; do case "$1" in -b) branch_arg="$2"; shift 2 ;; *) shift ;; esac; done; \
+		if [ -f ".subrepo" ]; then \
+			subrepo_file=".subrepo"; subrepo_dir="$(pwd)"; \
+		elif [ -n "$target_dir" ] && [ -f "$target_dir/.subrepo" ]; then \
+			subrepo_file="$target_dir/.subrepo"; subrepo_dir="$(cd "$target_dir" && pwd)"; \
+		else \
+			echo "Error: .subrepo file not found here or in the specified directory." >&2; return 1; \
+		fi; \
+		read -r url saved_branch repo_root < "$subrepo_file"; \
+		branch="${branch_arg:-$saved_branch}"; \
+		prefix=$(python3 -c "import os; print(os.path.relpath(\"$subrepo_dir\", \"$repo_root\"))"); \
+		if [ "$branch" != "$saved_branch" ]; then echo "$url $branch $repo_root" > "$subrepo_file"; echo "Branch updated to: $branch"; fi; \
+		echo "Pulling $url ($branch) into $prefix..."; \
+		cd "$repo_root" && git subtree pull --prefix="$prefix" "$url" "$branch" --squash; \
+	}; f'
 
 	echo "Subtree aliases installed: subpush, subpull" >> "$LOGFILE"
 }
@@ -410,9 +451,14 @@ Commands:
 	java-manager: Install SDKMAN and a Java runtime via SDKMAN
 	gh          : Install GitHub CLI (`gh`) only
 	gh-login    : Prompt for `gh auth login` (requires `gh` installed)
+	git-config  : Configure global git user.name/user.email and subtree aliases
 	record      : Append a manual note to the log
 	-h|--help   : Show this help
 EOF
+}
+
+print_done() {
+	echo "Done!" >> "$LOGFILE"
 }
 
 # -----------------------------
@@ -427,37 +473,49 @@ case "${1:-all}" in
 		prompt_gh_login
 		install_git_config
 		install_subtree_aliases
+		print_done
 		;;
 
 	apt)
 		install_apt_packages
 		prompt_gh_login
-		install_git_config
-		install_subtree_aliases
+		print_done
 		;;
 
 	pip)
 		install_pip_packages
+		print_done
 		;;
 
 	conda)
 		install_python_manager
+		print_done
 		;;
 
 	java-manager)
 		install_java_manager
+		print_done
 		;;
 
 	clone)
 		clone_uni_repo
+		print_done
 		;;
 
 	gh)
 		install_gh
+		print_done
 		;;
 
 	gh-login)
 		prompt_gh_login
+		print_done
+		;;
+
+	git-config)
+		install_git_config
+		install_subtree_aliases
+		print_done
 		;;
 
 	record)
