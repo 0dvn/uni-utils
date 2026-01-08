@@ -386,46 +386,67 @@ install_subtree_aliases() {
 		mkdir -p "$dir"; \
 		root="$(git rev-parse --show-toplevel)"; \
 		echo "$url $branch $root" > "$dir/.subrepo"; \
-		echo "Subrepo initialized in $dir"; \
-		echo "URL: $url"; \
-		echo "Branch: $branch"; \
-		echo "Root: $root"; \
 	}; f'
 
 	git config --global alias.subpush '!f() { \
-		target_dir="$1"; branch_arg=""; \
-		while [ $# -gt 0 ]; do case "$1" in -b) branch_arg="$2"; shift 2 ;; *) shift ;; esac; done; \
-		if [ -f ".subrepo" ]; then \
-			subrepo_file=".subrepo"; subrepo_dir="$(pwd)"; \
+		target_dir=""; branch_arg=""; \
+		while [ $# -gt 0 ]; do \
+			case "$1" in \
+				-b) branch_arg="$2"; shift 2 ;; \
+				-*) shift ;; \
+				*) target_dir="$1"; shift ;; \
+			esac; \
+		done; \
+		repo_root="$(pwd)"; \
+		user_prefix="${GIT_PREFIX%/}"; \
+		if [ -n "$user_prefix" ] && [ -f "$user_prefix/.subrepo" ]; then \
+			subrepo_dir="$repo_root/$user_prefix"; \
 		elif [ -n "$target_dir" ] && [ -f "$target_dir/.subrepo" ]; then \
-			subrepo_file="$target_dir/.subrepo"; subrepo_dir="$(cd "$target_dir" && pwd)"; \
+			subrepo_dir="$repo_root/${target_dir%/}"; \
+		elif [ -f ".subrepo" ]; then \
+			subrepo_dir="$repo_root"; \
 		else \
-			echo "Error: .subrepo file not found here or in the specified directory." >&2; return 1; \
+			echo "Error: .subrepo not found. (Current Git prefix: $GIT_PREFIX)" >&2; return 1; \
 		fi; \
-		read -r url saved_branch repo_root < "$subrepo_file"; \
+		read -r url saved_branch saved_root < "$subrepo_dir/.subrepo"; \
 		branch="${branch_arg:-$saved_branch}"; \
-		prefix=$(python3 -c "import os; print(os.path.relpath(\"$subrepo_dir\", \"$repo_root\"))"); \
-		if [ "$branch" != "$saved_branch" ]; then echo "$url $branch $repo_root" > "$subrepo_file"; echo "Branch updated to: $branch"; fi; \
-		echo "Pushing $prefix to $url ($branch)..."; \
-		cd "$repo_root" && git subtree push --prefix="$prefix" "$url" "$branch"; \
+		prefix="${subrepo_dir#$repo_root/}"; \
+		if [ "$subrepo_dir" = "$repo_root" ]; then prefix="."; fi; \
+		if [ "$branch" != "$saved_branch" ]; then \
+			echo "$url $branch $repo_root" > "$subrepo_dir/.subrepo"; \
+		fi; \
+		git subtree push --prefix="$prefix" "$url" "$branch"; \
 	}; f'
 		
 	git config --global alias.subpull '!f() { \
-		target_dir="$1"; branch_arg=""; \
-		while [ $# -gt 0 ]; do case "$1" in -b) branch_arg="$2"; shift 2 ;; *) shift ;; esac; done; \
-		if [ -f ".subrepo" ]; then \
-			subrepo_file=".subrepo"; subrepo_dir="$(pwd)"; \
+		target_dir=""; branch_arg=""; \
+		while [ $# -gt 0 ]; do \
+			case "$1" in \
+				-b) branch_arg="$2"; shift 2 ;; \
+				-*) shift ;; \
+				*) target_dir="$1"; shift ;; \
+			esac; \
+		done; \
+		repo_root="$(pwd)"; \
+		user_prefix="${GIT_PREFIX%/}"; \
+		if [ -n "$user_prefix" ] && [ -f "$user_prefix/.subrepo" ]; then \
+			subrepo_dir="$repo_root/$user_prefix"; \
 		elif [ -n "$target_dir" ] && [ -f "$target_dir/.subrepo" ]; then \
-			subrepo_file="$target_dir/.subrepo"; subrepo_dir="$(cd "$target_dir" && pwd)"; \
+			subrepo_dir="$repo_root/${target_dir%/}"; \
+		elif [ -f ".subrepo" ]; then \
+			subrepo_dir="$repo_root"; \
 		else \
-			echo "Error: .subrepo file not found here or in the specified directory." >&2; return 1; \
+			echo "Error: .subrepo not found. (Current Git prefix: $GIT_PREFIX)" >&2; return 1; \
 		fi; \
-		read -r url saved_branch repo_root < "$subrepo_file"; \
+		read -r url saved_branch saved_root < "$subrepo_dir/.subrepo"; \
 		branch="${branch_arg:-$saved_branch}"; \
-		prefix=$(python3 -c "import os; print(os.path.relpath(\"$subrepo_dir\", \"$repo_root\"))"); \
-		if [ "$branch" != "$saved_branch" ]; then echo "$url $branch $repo_root" > "$subrepo_file"; echo "Branch updated to: $branch"; fi; \
-		echo "Pulling $url ($branch) into $prefix..."; \
-		cd "$repo_root" && git subtree pull --prefix="$prefix" "$url" "$branch" --squash; \
+		prefix="${subrepo_dir#$repo_root/}"; \
+		if [ "$subrepo_dir" = "$repo_root" ]; then prefix="."; fi; \
+		echo "[DEBUG] Root: $repo_root | Subrepo: $subrepo_dir | Prefix: $prefix"; \
+		if [ "$branch" != "$saved_branch" ]; then \
+			echo "$url $branch $repo_root" > "$subrepo_dir/.subrepo"; \
+		fi; \
+		git subtree pull --prefix="$prefix" "$url" "$branch" --squash; \
 	}; f'
 
 	echo "Subtree aliases installed: subpush, subpull" >> "$LOGFILE"
