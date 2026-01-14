@@ -383,9 +383,10 @@ install_subtree_aliases() {
 	git config --global alias.subinit '!f() { \
 		dir="${1%/}"; url="$2"; branch="${3:-main}"; \
 		if [ -z "$dir" ] || [ -z "$url" ]; then echo "Usage: git subinit <dir> <url> [branch]" >&2; return 1; fi; \
-		mkdir -p "$dir"; \
 		root="$(git rev-parse --show-toplevel)"; \
+		mkdir -p "$dir"; \
 		echo "$url $branch $root" > "$dir/.subrepo"; \
+		git subtree add --prefix="$dir" "$url" "$branch" --squash; \
 	}; f'
 
 	git config --global alias.subpush '!f() { \
@@ -442,7 +443,6 @@ install_subtree_aliases() {
 		branch="${branch_arg:-$saved_branch}"; \
 		prefix="${subrepo_dir#$repo_root/}"; \
 		if [ "$subrepo_dir" = "$repo_root" ]; then prefix="."; fi; \
-		echo "[DEBUG] Root: $repo_root | Subrepo: $subrepo_dir | Prefix: $prefix"; \
 		if [ "$branch" != "$saved_branch" ]; then \
 			echo "$url $branch $repo_root" > "$subrepo_dir/.subrepo"; \
 		fi; \
