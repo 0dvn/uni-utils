@@ -298,6 +298,7 @@ prompt_gh_login() {
 		echo "Starting GitHub CLI login prompt..." | tee -a "$LOGFILE"
 		# Run the interactive login; allow it to fail without aborting the script
 		gh auth login || echo "gh auth login skipped or failed" | tee -a "$LOGFILE"
+		gh auth setup-git || echo "gh auth setup-git skipped or failed" | tee -a "$LOGFILE"
 	else
 		echo "gh not found; skipping login prompt" >> "$LOGFILE"
 	fi
